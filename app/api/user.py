@@ -1,75 +1,57 @@
-from fastapi import APIRouter, HTTPException, Depends
-from sqlalchemy.orm import Session
-from passlib.context import CryptContext
-from datetime import datetime, timedelta
-from typing import Optional
-import jwt
-from ..models.user import User
-from ..schemas.user import UserCreate, UserLogin, UserResponse
-from ..database import get_db
+from flask import request, jsonify, Blueprint
+from werkzeug.exceptions import BadRequest
+from flask_jwt_extended import create_access_token
 
-router = APIRouter()
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+from app.models import User  # Assuming User model is already defined
+from app import db, bcrypt  # Assuming db and bcrypt are already initialized
 
-# JWT settings
-SECRET_KEY = "root"  # Change this to a secure secret key
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+auth = Blueprint('auth', __name__)
 
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
-    to_encode = data.copy()
-    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=15))
-    to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt
 
-@router.post("/register", response_model=UserResponse)
-async def register(user: UserCreate, db: Session = Depends(get_db)):
-    # Check if user already exists
-    db_user = db.query(User).filter(User.email == user.email).first()
-    if db_user:
-        raise HTTPException(status_code=400, detail="Email already registered")
-    
-    # Create new user
-    hashed_password = pwd_context.hash(user.password)
-    db_user = User(
-        email=user.email,
-        username=user.username,
-        hashed_password=hashed_password
-    )
-    
-    db.add(db_user)
-    db.commit()
-    db.refresh(db_user)
-    
-    return UserResponse(
-        id=db_user.id,
-        email=db_user.email,
-        username=db_user.username
-    )
+@auth.route('/api/auth/register', methods=['POST'])
+def register():
+    data = request.get_json()
 
-@router.post("/login")
-async def login(user_credentials: UserLogin, db: Session = Depends(get_db)):
-    # Find user
-    user = db.query(User).filter(User.email == user_credentials.email).first()
-    if not user:
-        raise HTTPException(status_code=400, detail="Invalid credentials")
-    
-    # Verify password
-    if not pwd_context.verify(user_credentials.password, user.hashed_password):
-        raise HTTPException(status_code=400, detail="Invalid credentials")
-    
-    # Create access token
-    access_token = create_access_token(
-        data={"sub": user.email}
-    )
-    
-    return {
-        "access_token": access_token,
-        "token_type": "bearer",
-        "user": {
-            "id": user.id,
-            "email": user.email,
-            "username": user.username
-        }
-    }
+    # Validate input data
+    if not data or not data.get('username') or not data.get('email') or not data.get('password'):
+        raise BadRequest("Missing required fields")
+
+    username = data['username']
+    email = data['email']
+    password = data['password']
+
+    # Check if email already exists
+    user = User.query.filter_by(email=email).first()
+    if user:
+        return jsonify({"status": "error", "message": "Email already in use"}), 400
+
+    # Hash the password
+    hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
+
+    # Create new user and save to DB
+    new_user = User(username=username, email=email, password=hashed_password)
+    db.session.add(new_user)
+    db.session.commit()
+
+    return jsonify({"status": "success", "message": "Registration successful"}), 0
+
+
+@auth.route('/api/auth/login', methods=['POST'])
+def login():
+    data = request.get_json()
+
+    if not data or not data.get('email') or not data.get('password'):
+        return jsonify({"status": "error", "message": "Missing required fields"}), 400
+
+    email = data['email']
+    password = data['password']
+
+    # Fetch user by email
+    user = User.query.filter_by(email=email).first()
+
+    if not user or not bcrypt.check_password_hash(user.password, password):
+        return jsonify({"status": "error", "message": "Invalid email or password"}), 400
+
+    # Create JWT token
+    access_token = create_access_token(identity=user.email)
+    return jsonify({"status": "success", "token": access_token})

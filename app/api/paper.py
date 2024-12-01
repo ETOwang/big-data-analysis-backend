@@ -3,32 +3,75 @@ from app.models import Paper
 
 search_papers = Blueprint('search_papers', __name__)
 
-# 论文搜索接口
-@search_papers.route('/search', methods=['GET'])
+
+@search_papers.route('/api/search', methods=['GET'])
 def search():
-    query = request.args.get('query', '')
-    page = int(request.args.get('page', 1))
-    per_page = 10  # 每页显示 10 条记录
+    try:
+        # Get query parameters
+        query = request.args.get('query', '')
+        page = int(request.args.get('page', 1))
+        size = int(request.args.get('size', 10))
+        sort = request.args.get('sort', 'year')  # Default sort by year
 
-    # 搜索数据库中包含 query 的论文标题或关键词
-    papers = Paper.query.filter(
-        Paper.title.contains(query) | Paper.keywords.contains(query)
-    ).paginate(page, per_page, False)
+        # Build base query
+        base_query = Paper.query.filter(
+            Paper.title.contains(query) | Paper.abstract.contains(query)
+        )
 
-    # 结果转换成字典格式，准备返回给前端
-    results = [{
-        'id': paper.id,
-        'title': paper.title,
-        'author': paper.author,
-        'keywords': paper.keywords,
-        'published_date': paper.published_date.strftime('%Y-%m-%d')
-    } for paper in papers.items]
+        # Apply sorting
+        if sort == 'year':
+            base_query = base_query.order_by(Paper.year.desc())
+        elif sort == 'relevance':
+            # Implement relevance sorting logic if needed
+            pass
 
-    return jsonify({
-        'papers': results,
-        'total': papers.total,
-        'pages': papers.pages,
-        'page': page
-    })
+        # Execute paginated query
+        papers = base_query.paginate(page=page, per_page=size, error_out=False)
+
+        # Format results
+        results = [{
+            'paperId': paper.id,
+            'title': paper.title,
+            'abstract': paper.abstract[:200] + '...' if paper.abstract else '',
+            'year': paper.year.year if paper.year else None,
+        } for paper in papers.items]
+
+        return jsonify({
+            'status': 'success',
+            'data': results,
+            'totalResults': papers.total,
+            'page': page,
+            'pageSize': size
+        })
+
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 400
 
 
+@search_papers.route('/api/papers/<string:id>', methods=['GET'])
+def get_paper(id):
+    try:
+        paper = Paper.query.get_or_404(id)
+
+        # Basic paper info
+        paper_data = {
+            'paperId': paper.id,
+            'title': paper.title,
+            'abstract': paper.abstract,
+            'year': paper.year.year if paper.year else None,
+            'category': paper.category
+        }
+
+        return jsonify({
+            'status': 'success',
+            'data': paper_data
+        })
+
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 400
