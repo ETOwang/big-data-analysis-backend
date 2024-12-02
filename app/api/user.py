@@ -1,5 +1,4 @@
 from flask import request, jsonify, Blueprint
-from flask_cors import cross_origin
 from werkzeug.exceptions import BadRequest
 from flask_jwt_extended import create_access_token, get_jwt_identity, jwt_required
 
@@ -50,10 +49,20 @@ def login():
     return jsonify({"status": "success", "token": access_token, "code": "000"}), 200
 
 
+@auth.route('/api/users/vip/<string:id>', methods=['PUT'])
+def change_user_role(id):
+    # Fetch user by email
+    print(id)
+    user = User.query.filter_by(id=id).first()
+    db.session.delete(user)
+    user.role="VIP"
+    db.session.add(user)
+    db.session.commit()
+
+    return jsonify({"status": "success", "data": ""}), 200
+
 @auth.route('/api/users/profile', methods=['GET'])
 def get_user_profile():
-    # Get the identity of the current user
-    print(current_user_email)
     # Fetch user by email
     user = User.query.filter_by(email=current_user_email).first()
 
@@ -61,13 +70,11 @@ def get_user_profile():
         return jsonify({"status": "error", "message": "User not found"}), 404
 
     cur_role = user.role
-    if user.role:
-        user.role = "Normal"
+
     # Return user information
     user_info = {
         "username": user.username,
         "email": user.email,
         "role": cur_role
     }
-    print(user_info)
     return jsonify({"status": "success", "data": user_info}), 200

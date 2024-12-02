@@ -25,3 +25,12 @@ class User(db.Model):
 
     def __repr__(self):
         return f'<User {self.username}>'
+
+
+class Citation(db.Model):
+    __bind_key__ = 'citation'
+    first = db.Column(db.Integer)
+    second = db.Column(db.Integer)
+
+    def __repr__(self):
+        return f'<Citation {self.first}>'
