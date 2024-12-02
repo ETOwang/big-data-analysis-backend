@@ -27,5 +27,4 @@ def create_app():
     from .api.paper import search_papers as search_papers_blueprint
     app.register_blueprint(auth_blueprint)
     app.register_blueprint(search_papers_blueprint)
-
     return app
