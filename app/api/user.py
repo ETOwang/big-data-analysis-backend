@@ -1,6 +1,7 @@
 from flask import request, jsonify, Blueprint
+from flask_cors import cross_origin
 from werkzeug.exceptions import BadRequest
-from flask_jwt_extended import create_access_token
+from flask_jwt_extended import create_access_token, get_jwt_identity, jwt_required
 
 from app.models import User  # Assuming User model is already defined
 from app import db, bcrypt  # Assuming db and bcrypt are already initialized
@@ -42,8 +43,31 @@ def login():
     user = User.query.filter_by(email=email).first()
     if not user or not bcrypt.check_password_hash(user.password, password):
         return jsonify({"status": "error", "message": "Invalid email or password"}), 400
-    print(email)
-    print(password)
     # Create JWT token
     access_token = create_access_token(identity=user.email)
     return jsonify({"status": "success", "token": access_token, "code": "000"}), 200
+
+
+@auth.route('/api/users/profile', methods=['GET'])
+
+def get_user_profile():
+    # Get the identity of the current user
+    current_user_email = "12@qq.com"
+    print(current_user_email)
+    # Fetch user by email
+    user = User.query.filter_by(email=current_user_email).first()
+
+    if not user:
+        return jsonify({"status": "error", "message": "User not found"}), 404
+
+    cur_role = user.role
+    if user.role:
+        user.role = "Normal"
+    # Return user information
+    user_info = {
+        "username": user.username,
+        "email": user.email,
+        "role": cur_role
+    }
+    print(user_info)
+    return jsonify({"status": "success", "data": user_info}), 200
