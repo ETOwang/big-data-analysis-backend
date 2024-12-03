@@ -29,6 +29,7 @@ class User(db.Model):
 
 class Citation(db.Model):
     __bind_key__ = 'citation'
+    id = db.Column(db.Integer, primary_key=True)
     first = db.Column(db.Integer)
     second = db.Column(db.Integer)
 

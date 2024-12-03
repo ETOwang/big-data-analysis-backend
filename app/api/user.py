@@ -8,10 +8,11 @@ from app import db, bcrypt  # Assuming db and bcrypt are already initialized
 auth = Blueprint('auth', __name__)
 
 current_user_email = ""
+
+
 @auth.route('/api/auth/register', methods=['POST'])
 def register():
     data = request.get_json()
-    print(data)
     # Validate input data
     if not data or not data.get('username') or not data.get('email') or not data.get('password'):
         raise BadRequest("Missing required fields")
@@ -45,21 +46,23 @@ def login():
     # Create JWT token
     access_token = create_access_token(identity=user.email)
     global current_user_email
-    current_user_email=user.email
+    current_user_email = user.email
     return jsonify({"status": "success", "token": access_token, "code": "000"}), 200
 
 
-@auth.route('/api/users/vip/<string:id>', methods=['PUT'])
-def change_user_role(id):
+@auth.route('/api/users/vip', methods=['PUT'])
+def change_user_role():
     # Fetch user by email
-    print(id)
-    user = User.query.filter_by(id=id).first()
+    print(current_user_email)
+    user = User.query.filter_by(email=current_user_email).first()
+    print(user)
     db.session.delete(user)
-    user.role="VIP"
+    user.role = "VIP"
     db.session.add(user)
     db.session.commit()
 
     return jsonify({"status": "success", "data": ""}), 200
+
 
 @auth.route('/api/users/profile', methods=['GET'])
 def get_user_profile():

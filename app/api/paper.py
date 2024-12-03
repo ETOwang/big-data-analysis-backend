@@ -57,30 +57,31 @@ def get_paper(id):
         # Fetch citations and similar papers (assuming relationships are defined in the Paper model)
         citations = []
         base_query = Paper.query.filter(
-            Paper.abstract.contains(paper.title)
+            Paper.abstract.contains(paper.title.split(' ')[0])
         )
         similar_papers = base_query.paginate()
         base_query = Citation.query.filter(
             Citation.first == paper.id
         )
-        for (first, second) in base_query.paginate():
-            citations.append(Paper.query.get_or_404(second))
-
+        for item in base_query.paginate().items:
+            citations.append(Paper.query.get_or_404(item.second))
         # Format citations
         formatted_citations = [{
+            'paperId': citation.id,
             'title': citation.title,
             'year': citation.year.year if citation.year else None
         } for citation in citations]
 
         # Format similar papers
         formatted_similar_papers = [{
+            'paperId': similar.id,
             'title': similar.title,
             'abstractPreview': similar.abstract[:200] + '...' if similar.abstract else '',
             'year': similar.year.year if similar.year else None
-        } for similar in similar_papers]
-
+        } for similar in similar_papers.items]
         # Basic paper info
         paper_data = {
+            'paperId': paper.id,
             'title': paper.title,
             'abstract': paper.abstract,
             'year': paper.year.year if paper.year else None,
@@ -88,8 +89,6 @@ def get_paper(id):
             'similarPapers': formatted_similar_papers,
             'category': paper.category if paper.category else "",
         }
-        print(formatted_similar_papers)
-        print(formatted_citations)
         return jsonify({
             'status': 'success',
             'data': paper_data
@@ -100,3 +99,50 @@ def get_paper(id):
             'status': 'error',
             'message': str(e)
         }), 400
+
+
+@search_papers.route('/api/sameCategoryPapers/<string:id>', methods=['GET'])
+def get_same_category(id):
+    try:
+        paper = Paper.query.get_or_404(id)
+        # Fetch citations and similar papers (assuming relationships are defined in the Paper model)
+        base_query = Paper.query.filter(
+            Paper.category == paper.category
+        )
+        categories = base_query.paginate().items
+        formatted_category_papers = [{
+            'paperId': category.id,
+            'title': category.title,
+            'abstract': category.abstract,
+            'year': category.year.year if category.year else None,
+            'category': category.category if category.category else "",
+        } for category in categories]
+        print(categories)
+        return jsonify({
+            'status': 'success',
+            'data':formatted_category_papers
+        }), 200
+
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 400
+
+##
+# import numpy as np
+# import pandas as pd
+# import faiss
+# csv_file_path = 'path/to/your/vectors.csv'
+# data = pd.read_csv(csv_file_path)
+#
+# vectors = data.values.astype('float32')
+# d = vectors.shape[1]
+#
+# index = faiss.IndexFlatL2(d)  # 使用L2距离
+# index.add(vectors)  # 添加向量到索引
+#
+# query_vector = np.random.random((1, d)).astype('float32')  # 创建一个随机查询向量
+# k = 4  # 近邻数量
+# D, I = index.search(query_vector, k)
+##
